@@ -1,0 +1,49 @@
+.cps
+	A sequence of bases after homopolymer compression
+	cps files are FASTA formated, and contain compressed sequences
+.readname
+	A tab separated table
+	Maps a read index number to it's original name
+	See .fa
+.fa
+	Similar to FASTA file
+	Reads are indexed (not named)
+	Each read has all it's bases on one line (no splitting)
+	See .readname
+.idx
+	Tab separated index file generated during homopolymer compression
+	0: readindex_repeatcount, the read index followed by an underscore and then the number of times it was reapeated
+	1: Position of compression point in the compressed sequence (index into .cps)
+	3: Repeat count of the corresponding compression point
+
+.nav
+	Natived/Novoalign format
+	Tab separated table of alignment data
+	Probably not sorted by position
+	0: SR name (readindex_repeatcount in LSC), and negative if the complement of the short read mapped to the long read
+	1: LR index to which the SR mapped
+	2: Position (0 or 1 based??) in the LR at which the SR maps
+	3: Space separated list of CIGARs
+		Each cigar is a position followed (without a separator) by an operation as below
+		X>Y is replace
+		+X is insertion
+		-X is deletion
+
+.map
+	Mapping file, created by convertNAV
+	Has one line per long read with fields separated by tabs
+	0: long read name (index)
+	1: Semicolong separated list of NAV lines for that long read
+		Each NAV line has been rewritten to be comma separated instead of tab
+		(long read name/index in these NAV lines is duplicate info, of course)
+.tmp
+	Temporary file for LSC correction
+	Has one line per long read, with fields in a line separated by "yue"
+	0: cps for long read
+	1: idx for long read
+	2: map data
+		See .map format
+		may be reordered, may be sorted after writetmp
+	3: LR name/index
+	4: Short reads (cps), separated by "kinfai"
+	5: Short read (idx), separated by "kinfai"

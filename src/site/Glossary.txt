@@ -1,0 +1,11 @@
+Long Reads (lr)
+	A long read, generally assumed to be produced by a third generation sequencer e.g. Pac Bio
+	On the order of thousands of bases
+
+Short Reads (sr)
+	A short read, generally assumed to be produced by a second generation sequence e.g. Illumina
+	On the order of a hundred bases
+
+Corrections
+	There are four types of corrections
+	Insertion (+), deletion (-), SNP (>) and homopolymer repetition count correction (HC)

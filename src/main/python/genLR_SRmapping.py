@@ -1,21 +1,17 @@
 #!/usr/bin/python
 
 import sys
-import os
-from numpy import *
-import datetime
 import string
 import commands
 import threading
 import random
+import gzip
+from lsccommon import log_command, log_print
+
 
 ################################################################################
 # Debug flags
 printSCD = False
-
-################################################################################
-def log_print(print_str):
-    os.system("echo '" + str(print_str) + "'")
 
 ################################################################################
 
@@ -35,57 +31,16 @@ else:
 
 ################################################################################
 # Splitting the nav file
-num_lines = int(commands.getstatusoutput('wc -l ' + nav_filename)[1].split()[0])
-
-if (num_lines == 0):
-    log_print("Error: No short reads was aligned to long read. LSC could not correct any long read sequence.")
-    exit(1)
-    
-Nsplitline = 1 + (num_lines/Nthread)
-
-Nthread_temp = int(num_lines)/int(Nsplitline)
-if ((num_lines % Nsplitline) != 0):
-    Nthread_temp += 1
-if (Nthread_temp < Nthread):
-    Nthread = Nthread_temp
-    
-split_cmd = "split -l " + str(Nsplitline) + " " + nav_filename + " " + nav_filename  +"."
-os.system(split_cmd)
-
-## Sorting the files
-ext_ls=[]
-for i in range(Nthread):
-    ext_ls.append( '.' + string.lowercase[i / 26] + string.lowercase[i % 26] )
-  
-i = 0
-T_ls = []
-nav_filename_list = [] 
-for ext in ext_ls:
-    sort_cmd = "sort -T " + temp_foldername 
-    if (sort_max_mem != "-1"):
-        sort_cmd += " -S " + str(sort_max_mem) + " "    
-    sort_cmd += " -nk 2 "  + nav_filename + ext + " > " + nav_filename + ext + ".sort" 
-    T_ls.append( threading.Thread(target=os.system, args=(sort_cmd,)) )
-    T_ls[i].start()
-    i += 1
-    nav_filename_list.append(nav_filename + ext + ".sort" )
-for T in T_ls:
-    T.join()
-            
-sort_cmd = "sort -m -T " + temp_foldername
+sort_cmd = "bash -c 'sort -T " + temp_foldername
 if (sort_max_mem != "-1"):
     sort_cmd += " -S " + str(sort_max_mem) + " "
-sort_cmd += " -nk 2 "  + " ".join(nav_filename_list) + " > " + nav_filename + ".sort"
-os.system(sort_cmd)
+sort_cmd += " -nk 2 --compress-program=bzip2 --parallel=" + str(Nthread) + " <(zcat "  + nav_filename + " ) | gzip -1 > " + nav_filename + ".sort.gz'"
 
-for ext in ext_ls:
-    delSRnavsort_cmd = "rm " + nav_filename + ext + ".sort"
-    delSRnav_cmd = "rm " + nav_filename + ext 
-    os.system(delSRnavsort_cmd)
-    os.system(delSRnav_cmd)
-    
+log_command(sort_cmd)
+
 log_print("Done with sorting")
 
+################################################################################
 LR_cps_file = open(LR_filename + '.cps','r')
 LR_cps_dict={}
 for line in LR_cps_file:
@@ -109,15 +64,16 @@ for line in LR_name_file:
     LR_name_dict[fields[0]] = fields[1]
 LR_name_file.close()
 
-nav_file=open(nav_filename + ".sort" ,'r')
-nav_cvrg_file=open(nav_filename + ".sort" ,'r')   # This used to compute coverage
+nav_file= gzip.open(nav_filename + ".sort.gz" ,'r')
+nav_cvrg_file= gzip.open(nav_filename + ".sort.gz" ,'r')   # This used to compute coverage
 LR_SR_mapping_file = open(temp_foldername + "LR_SR.map",'w')
 if (printSCD):
     LR_SR_coverage_file = open(temp_foldername + "LR_SR.scd",'w')
     LR_uSR_coverage_file = open(temp_foldername + "LR_SR.uscd",'w')
     LR_SR_coverage_selected_file = open(temp_foldername + "LR_SR.scd.selected",'w')
     LR_uSR_coverage_selected_file = open(temp_foldername + "LR_SR.uscd.selected",'w')
-def write_2_LR_SR_map_file(nav_file, num_lines, LR_name, 
+
+def write_2_LR_SR_map_file(nav_file, num_lines, LR_name,
                            LR_coverage_list, LR_uniq_coverage_list):
     
     # Store LR-SR SCD
@@ -201,6 +157,7 @@ LR_coverage_list[pos:(pos+SR_len)] = [(i + SR_rpt) for i in LR_coverage_list[pos
 LR_uniq_coverage_list[pos:(pos+SR_len)] = [(i + 1) for i in LR_uniq_coverage_list[pos:(pos+SR_len)]]
 prev_LR_name = LR_name
 num_lines = 0   # pre-incremented
+
 for line in nav_cvrg_file:
     num_lines += 1
     if line[0]!='#':
@@ -234,8 +191,8 @@ if (printSCD):
     LR_SR_coverage_selected_file.close()
     LR_uSR_coverage_selected_file.close()
     
-delSRnavsort_cmd = "rm " + nav_filename + ".sort"
-os.system(delSRnavsort_cmd)
+delSRnavsort_cmd = "rm " + nav_filename + ".sort.gz"
+log_command(delSRnavsort_cmd)
 
 log_print("Done with generating LR_SR.map file")
 

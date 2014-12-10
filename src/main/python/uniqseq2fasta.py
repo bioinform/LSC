@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import sys
-import os
 
 if len(sys.argv) >= 2:
     filename = sys.argv[1]
@@ -10,14 +9,14 @@ else:
     print("or pythn SR_uniq.seq")
     sys.exit(1)
 ################################################################################
-file = open(filename ,'r')
+sr_uniq_file = open(filename ,'r')
 
 i=1
-for line in file:
+for line in sr_uniq_file:
     ls = line.strip().split(" ")
     print ">" + str(i) + "_" + ls[-2]
     print ls[-1]
     i += 1
-file.close()
+sr_uniq_file.close()
 ################################################################################
     

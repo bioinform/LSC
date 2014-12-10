@@ -1,36 +1,36 @@
 #!/usr/bin/python
 
 import sys
-import os
 
 if len(sys.argv)>=4:
     filetype = sys.argv[1]
     sub_filename = sys.argv[2]
     output_filename = sys.argv[3]
 else:
+    print("Remove overlapping/complementary tails from long reads, keep a single full pass of the insert sequence")
     print("usage: ./RemoveBothTails.py filetype sub_file output_sub_filename")
-    print("or ")
+    print("or python RemoveBothTails.py filetype sub_file output_sub_filename")
     sys.exit(1)
 ################################################################################
 def processls(d):
     result_d = {}
     i=0
-    for range in d:
-        ls = range.split('_')
+    for rangex in d:
+        ls = rangex.split('_')
         L = int(ls[1]) -int(ls[0])
         if i==0:
             ref_L = L
-            ref_seq = d[range]
-            ref_range = range
+            ref_seq = d[rangex]
+            ref_range = rangex
             i+=1 
             continue
         if L >= ref_L :
-            result_d[range]=d[range]
+            result_d[rangex]=d[rangex]
         elif L < ref_L:
             result_d[ref_range]=ref_seq
             ref_L =L
-            ref_seq = d[range]
-            ref_range = range
+            ref_seq = d[rangex]
+            ref_range = rangex
     return result_d 
 ################################################################################
 
@@ -81,8 +81,8 @@ for sub_name in sub_dt:
     elif len(sub_dt[sub_name])>2:
         sub_dt[sub_name] = processls(sub_dt[sub_name])
         sub_dt[sub_name] = processls(sub_dt[sub_name])
-    for range in sub_dt[sub_name]:
-        output.write(sub_name+range+'\n')
-        output.write(sub_dt[sub_name][range]+'\n')
+    for rangex in sub_dt[sub_name]:
+        output.write(sub_name+rangex+'\n')
+        output.write(sub_dt[sub_name][rangex]+'\n')
 output.close()
 intact_MS.close()

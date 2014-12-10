@@ -1,0 +1,18 @@
+Run LSC Stages
+	Remove duplicate short reads
+	Split the SR FASTQ across CPUs
+		Thread1 is for the alignment/SRs
+		Run HC over the split SR input
+		Creates cps and idx files
+	Remove the tails (shorter bits) from the LR, which SHOULD also be the overlapping DNA compliment
+	Compress the long reads
+	Alignment
+		Build the aligner index and then align short to long
+		Parse the SAM file to NAV format if needed
+	ConvertNAV to create the map files
+	Create the tmp files
+	Split the LR/SR map across CPUs
+		thread2 for corrections, uses a bunch of memory
+		thread1 > thread2
+		Run correction
+	Put everything back together

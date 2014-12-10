@@ -1,12 +1,10 @@
 #!/usr/bin/python
 
 import sys
-import os
-from numpy import *
+import numpy
 import datetime
-from re import *
-from copy import *
-import math
+import re
+from lsccommon import log_print
 
 # Probability of correctness
 fq_prob_list = [0.725,
@@ -24,13 +22,11 @@ fq_prob_list = [0.725,
                 0.995153429,
                 0.997786834,
                 0.999999999]
-fq_char_list = [str(unichr(min(int(33 - 10 * math.log10(1 -p)), 73))) for p in fq_prob_list]
+fq_char_list = [str(unichr(min(int(33 - 10 * numpy.math.log10(1 -p)), 73))) for p in fq_prob_list]
 NUM_FQ_CHAR = len(fq_char_list) - 1
 
-def log_print(print_str):
-    os.system("echo '" + str(print_str) + "'")
-
 ################################################################################
+# Separate the path to a file from the filename (filepath -> path,filename)
 def GetPathAndName(pathfilename):
     ls=pathfilename.split('/')
     filename=ls[-1]
@@ -39,6 +35,7 @@ def GetPathAndName(pathfilename):
     path='/'.join(ls[0:-1])+'/'
     return path, filename
 
+# Compute the complementary sequence from a base sequence
 def compleseq(seq):
     newseq=""
     for base in seq:
@@ -73,7 +70,7 @@ def lower_mismatch_bowtie(SR_seq,mismatch):
         SR_seq_list[pos] = SR_seq_list[pos].lower()
     return ''.join(SR_seq_list)
 
-
+# Turn a cps repetition count list into a complete list (insert 1 for things which aren't repeated)
 def expandidx_list(line):
     L_p_seq_ls = []
     ls = line.strip().split('\t')
@@ -95,19 +92,20 @@ def expandidx_list(line):
     return L_p_seq_ls
 
 ################################################################################
-
+# Compute majority sequence from the candidates
 def optimize_seq(temp_candidate_ls):
     result = ""
     max_n = 0
     temp_candidate_set = set(temp_candidate_ls)
     for temp_candidate in temp_candidate_set:
         if temp_candidate!='' :
-            n = temp_candidate_ls.count(temp_candidate)
+            n = temp_candidate_ls.count(temp_candidate) # TODO: Don't actually need to count all of this, some if it was counted before replication
             if n > max_n:
                 result = temp_candidate
                 max_n =n
     return[ result, max_n ]
 ################################################################################
+# Uncompress a cps back to the original sequence
 def uncompress_seq(temp_SR_idx_seq_list,seq):
     result = ""
 
@@ -135,12 +133,14 @@ else:
 LR_read_name_list = [""]
 readname_file = open(LR_readname_filename,'r')
 i = 0
+# Load all the long read names
 for line in readname_file:
     i = i + 1
     fields = line.strip().split()
     read_int = int(fields[0])
     
     for j in range(i - read_int):
+        # Fill in missing readname entries
         LR_read_name_list.append("")
     LR_read_name_list.append(fields[1])
     
@@ -149,15 +149,17 @@ path,filename = GetPathAndName(LR_SR_mapping_filename)
 
 tmp = open(LR_SR_mapping_filename,'r')
 full_read_file=open(path + 'full_'+ filename,'w')
-correted_read_file=open(path + 'corrected_'+ filename,'w')
-correted_read_fq_file=open(path + 'corrected_'+ filename +'.fq','w')
+corrected_read_file=open(path + 'corrected_'+ filename,'w')
+corrected_read_fq_file=open(path + 'corrected_'+ filename +'.fq','w')
 uncorrected_read_file = open(path + 'uncorrected_'+ filename,'w')
 
 zerostr="0"
 onestr="1"
 t0 = datetime.datetime.now()
+# For each long read, perform correction
 for tmp_line in tmp:
 
+    # Separate the tmp line into it's components
     tmp_ls = tmp_line.split('yue')
     LR_seq = tmp_ls[0]
     LR_idx_seq = tmp_ls[1]
@@ -169,8 +171,8 @@ for tmp_line in tmp:
         log_print(read_name + "\tno alignment")
         continue
 
-    ls_SR_seq = tmp_ls[4].split('kinfai')
-    ls_SR_idx_seq = tmp_ls[5].split('kinfai')
+    ls_SR_seq = tmp_ls[4].split('kinfai') # Short read compressed sequences
+    ls_SR_idx_seq = tmp_ls[5].split('kinfai') # Short read indices
     
     start_pt_ls = []
     NSR_ls = []
@@ -179,13 +181,13 @@ for tmp_line in tmp:
     insert_pt_ls_ls = []
     del_pt_list = []
     del_pt_set=set()
-    crt_pt_ls = set()
+    crt_pt_ls = set() # the correction point list
     crt_pt_dict={}
     all_seq_idx_list=[]
     all_del_seq_list=[]
     temp_all_seq_idx=[]
 
-    LR_seq = LR_seq.strip()+'ZX'*25
+    LR_seq = LR_seq.strip()+'ZX'*25 # extend the long read with ZX in order to handle short reads which go past the end of the long read
     L_LR_seq = len(LR_seq)
     a=L_LR_seq-1
     LR_idx_seq_ls = LR_idx_seq.strip().split('\t')
@@ -195,12 +197,13 @@ for tmp_line in tmp:
     else:
         p_ls=[]
 
-    crt_pt_ls.update(set(array(p_ls,dtype='int')))
+    crt_pt_ls.update(set(numpy.array(p_ls,dtype='int')))
     crt_pt_ls.update(set(range(a-50,a) ))
 #########################################################################################################
     end_pt_ls = []
     i=0 
 
+    # For each short read mapped to this long read
     coverage_list = [0] * L_LR_seq
     for SR in SR_ls_ls:
         SR_ls = SR.split(',')
@@ -208,8 +211,8 @@ for tmp_line in tmp:
         pos = int(SR_ls[1])
         pos -=1
         if pos<0:
-           i+=1
-           continue
+            i+=1
+            continue
         start_pt_ls.append(pos)
         SR_seq = ls_SR_seq[i]
         L =len(SR_seq.strip())
@@ -220,13 +223,16 @@ for tmp_line in tmp:
         temp_del_dt= {}
         indel_pt_set =set()
 
+        # If there's a mismatch (of any kind) between the SR and LR
         if not mismatch == '':
-            mismatch_pos_ls = map(int, findall(r'\d+',mismatch))
-            mismatch_type_ls = findall('>|\+|-', mismatch)
-            mismatch_seq_ls = findall('\w+', mismatch)
+            mismatch_pos_ls = map(int, re.findall(r'\d+',mismatch))
+            mismatch_type_ls = re.findall('>|\+|-', mismatch)
+            mismatch_seq_ls = re.findall('\w+', mismatch)
             j=0
             
+            # For all of the mismatches
             for mismatch_type in mismatch_type_ls:
+                # Convert the CIGAR information into an internal representation by position
                 if mismatch_type == '+':
                     del_pt = mismatch_pos_ls[j] + pos
                     del_pt_set.add(del_pt)
@@ -247,6 +253,7 @@ for tmp_line in tmp:
                     p_ls.append(mismatch_pos_ls[j])
                 j+=1
 
+        # Compute coverage information (percentage of LR covered by SR)
         end_pt_ls.append(pos + L - 1)
         n_rep = int(SR_ls[0].split('_')[1])
         coverage_list[pos : (pos + L)] = [(coverage_list[k] + n_rep) for k in range(pos, pos + L)]
@@ -265,16 +272,18 @@ for tmp_line in tmp:
 
         continue
 
+#########################################################################################################
+    # Clip the 3 and 5 prime ends of the long read, which are uncovered by short reads
     temp_LR_idx_seq_list = expandidx_list(LR_idx_seq)
-    temp_LR_idx_seq_list.extend( [onestr]*( len(LR_seq) - len(temp_LR_idx_seq_list)) )
+    temp_LR_idx_seq_list.extend( [onestr]*( len(LR_seq) - len(temp_LR_idx_seq_list)) ) # handle the ZX stuff
 
-    max_start_pt100 = 100 + max(start_pt_ls)
+    #max_start_pt100 = 100 + max(start_pt_ls)
     end_pt = max(end_pt_ls)+1
 
-    five_end_seq = uncompress_seq(temp_LR_idx_seq_list[0:start_pt], LR_seq[0:start_pt])
+    five_end_seq = uncompress_seq(temp_LR_idx_seq_list[0:(start_pt+1)], LR_seq[0:(start_pt+1)])    # Note: the end and start pos of SRs are not used for correction
     three_end_seq=""
-    if max_start_pt100<len(LR_seq)-50:
-        three_end_seq = uncompress_seq(temp_LR_idx_seq_list[max_start_pt100:(len(LR_seq)-50)], LR_seq[max_start_pt100:(len(LR_seq)-50)])
+    if ((end_pt-1) < (len(LR_seq)-50)):
+        three_end_seq = uncompress_seq(temp_LR_idx_seq_list[(end_pt-1):(len(LR_seq)-50)], LR_seq[(end_pt-1):(len(LR_seq)-50)])
 
 
     temp_LR_seq = LR_seq[start_pt:end_pt].strip()
@@ -285,10 +294,13 @@ for tmp_line in tmp:
     temp_LR_idx_seq_list.extend( [onestr]*( L_temp_LR_seq - len(temp_LR_idx_seq_list)) )
 
     uncorrected_read_file.write('>' + LR_read_name_list[read_int] +'\n')
-    uncorrected_read_file.write(uncompress_seq(temp_LR_idx_seq_list, temp_LR_seq).replace('X','').replace('Z','') +'\n')
+    # Note: the end and start pos of SRs are not used for correction
+    L_temp_LR_idx_seq_list = len(temp_LR_idx_seq_list)
+    uncorrected_read_file.write(uncompress_seq(temp_LR_idx_seq_list[1:(L_temp_LR_idx_seq_list-1)], temp_LR_seq[1:(L_temp_LR_idx_seq_list-1)]).replace('X','').replace('Z','') +'\n') 
 
 #########################################################################################################
     i=0
+    # Iterate over the short reads, make the short read as long as the long read (TODO: HOLY SCHAMOLY!)
     for NSR in NSR_ls:
         insert_pt_set = insert_pt_ls_ls[i]
         temp_del_dt = del_pt_list[i]
@@ -318,51 +330,53 @@ for tmp_line in tmp:
         SR_seq_list=list(SR_seq)
         SR_idx_seq_list[0]=zerostr
         SR_idx_seq_list[-1]= zerostr
-        SR_del_seq_list = ['=']*len(SR_seq_list)
+        SR_del_seq_list = ['=']*len(SR_seq_list) # Equals sign is used to indicate a deletion
 
         deleted_idx_list=[]
         indel_pt_ls = list(indel_pt_set)
         indel_pt_ls.sort()
          
+        # Go over all the indel points for this short read and rewrite them to use the long read position
         for pt in indel_pt_ls:
             if pt in insert_pt_set:
                 SR_seq_list.insert(pt-1,'-')
-                SR_idx_seq_list.insert(pt-1,onestr)    
-                SR_del_seq_list.insert(pt-1,'=')    
+                SR_idx_seq_list.insert(pt-1,onestr)
+                SR_del_seq_list.insert(pt-1,'=')
 
             if temp_del_dt.has_key(pt):
                 L=len(temp_del_dt[pt])
                 pt-=1
                 del SR_seq_list[pt:pt+L]
-                del SR_del_seq_list[pt:pt+L]    
+                del SR_del_seq_list[pt:pt+L]
                 SR_del_seq_list[pt-1] = uncompress_seq(SR_idx_seq_list[pt:pt+L], temp_del_dt[pt+1])
                 del SR_idx_seq_list[pt:pt+L]
         SR_del_seq = ''.join(SR_del_seq_list)
 ###############
 
-        (I_ls,) = nonzero(array(SR_idx_seq_list,dtype='int')>1)
+        (I_ls,) = numpy.nonzero(numpy.array(SR_idx_seq_list,dtype='int')>1)
         I_ls = len_space + I_ls 
         crt_pt_ls.update(set(I_ls))
 
 #############DISPLAY#######################################
-
-        crt_pt_ls.update( set(array(list(insert_pt_set),dtype='int')+len_space-1) )
+        # Add everything we can learn from this SR into the master correction list
+        crt_pt_ls.update( set(numpy.array(list(insert_pt_set),dtype='int')+len_space-1) )
         SR_idx_seq  = Convertord(SR_idx_seq_list)
         SR_seq = ''.join(SR_seq_list)
 
+############FILL UP LEFT SIDE############################
         temp_SR_seq = zerostr*(len_space-start_pt) + SR_seq
         temp_SR_idx_seq = zerostr*(len_space-start_pt) + SR_idx_seq
         temp_SR_del_seq = zerostr*(len_space-start_pt) + SR_del_seq
 
-        temp =copy(SR_seq_list)
+        temp = numpy.copy(SR_seq_list)
         SR_seq_list = [zerostr]*(len_space-start_pt)
         SR_seq_list.extend(temp)
 
-        temp =copy(SR_idx_seq_list)
+        temp = numpy.copy(SR_idx_seq_list)
         SR_idx_seq_list =[zerostr]*(len_space-start_pt)
         SR_idx_seq_list.extend(temp)
 
-        temp =copy(SR_del_seq_list)
+        temp = numpy.copy(SR_del_seq_list)
         SR_del_seq_list =[zerostr]*(len_space-start_pt)
         SR_del_seq_list.extend(temp)
 
@@ -382,33 +396,39 @@ for tmp_line in tmp:
 
 #########################################################################################################
 
-    crt_pt_sorted_array = array(sort(list(crt_pt_ls)))
+    # Sort the correction points based on position
+    crt_pt_sorted_array = numpy.array(numpy.sort(list(crt_pt_ls)))
 
-    temp_index_ls = searchsorted(crt_pt_sorted_array,[start_pt,end_pt])
+    temp_index_ls = numpy.searchsorted(crt_pt_sorted_array,[start_pt,end_pt])
     crt_repos_ls = crt_pt_sorted_array[temp_index_ls[0]:temp_index_ls[1]] - start_pt
 
     temp_LR_seq_list = list(temp_LR_seq)
     i = 0
+    # Compute coverage information for the long read
     for x in temp_LR_seq_list:
         n = int(temp_LR_idx_seq_list[i])
         temp_LR_seq_list[i] = x*n
         coverage_list[i] = coverage_list[i] * n
         i+=1
 
+    # Make the corrections (+,>,HC)
     for crt_repos in crt_repos_ls:
         temp_candidate_ls = []
-        for temp_SR_seq_idx_list in all_seq_idx_list:
+        # For each SR
+        for temp_SR_seq_idx_list in all_seq_idx_list: # list(list(list()))
 
-            x = temp_SR_seq_idx_list[0][crt_repos]
-            n = int(temp_SR_seq_idx_list[1][crt_repos])
-            n_rep =int( temp_SR_seq_idx_list[2])
+            x = temp_SR_seq_idx_list[0][crt_repos] # base
+            n = int(temp_SR_seq_idx_list[1][crt_repos]) # repeat of the base
+            n_rep =int( temp_SR_seq_idx_list[2]) # repeat of the short read
             
+            # fix for some bug related to neighboring bases
             pre_x = temp_SR_seq_idx_list[0][max(0,crt_repos-1)]
             post_x = temp_SR_seq_idx_list[0][min(len(temp_SR_seq_idx_list[0])-1, crt_repos+1)]
+            # the 0 is from the SR extension, it's not a deletion it means no data
             if n>0 and x!='N' and pre_x!='N' and post_x!='N':
                 temp_candidate_ls.extend([x*n]*n_rep)
+        
         [optimal_seq, n_max] = optimize_seq(temp_candidate_ls)
-
         if optimal_seq!='':
             if optimal_seq=='-':
                 optimal_seq=''
@@ -421,13 +441,15 @@ for tmp_line in tmp:
 
 #########################################################################################################
 
-    del_pt_sorted_array = array(sort(list(del_pt_set)))
-    temp_del_index_ls = searchsorted(del_pt_sorted_array,[start_pt-1,end_pt])
+    del_pt_sorted_array = numpy.array(numpy.sort(list(del_pt_set)))
+    temp_del_index_ls = numpy.searchsorted(del_pt_sorted_array,[start_pt-1,end_pt])
     del_repos_ls = del_pt_sorted_array[temp_del_index_ls[0]:temp_index_ls[1]] - start_pt -2
 
     Npredel=0
+    # Make the corrections (-)
     for del_repos in del_repos_ls:
         temp_candidate_ls = []
+        # For each SR
         for SR_del_seq_list_ls in all_del_seq_list:
             SR_del_seq_list = SR_del_seq_list_ls[0]
             n_rep = SR_del_seq_list_ls[1]
@@ -443,8 +465,8 @@ for tmp_line in tmp:
             Npredel+=1
 #########################################################################################################
 
-    final_seq = ''.join(temp_LR_seq_list[1:(coverage_L-1)])
-    coverage_seq = ''.join(coverage_list[1:(coverage_L-1)])
+    final_seq = ''.join(temp_LR_seq_list[1:(coverage_L-1)]) # create the corrected long read, Note: the end and start pos of SRs are not used for correction
+    coverage_seq = ''.join(coverage_list[1:(coverage_L-1)]) # Coverage data, turns into quality in the output fastq
     
 #########################################################################################################
     
@@ -454,18 +476,18 @@ for tmp_line in tmp:
     corrected_seq = final_seq.replace('X','').replace('Z','')
     coverage = 1. * sum((cvrg != fq_char_list[0]) for cvrg in coverage_seq) / len(corrected_seq)
 
-    correted_read_file.write('>' + LR_read_name_list[read_int] + '|' + "{0:.2f}".format(round(coverage, 2)) + '\n')
-    correted_read_file.write(corrected_seq + '\n')
+    corrected_read_file.write('>' + LR_read_name_list[read_int] + '|' + "{0:.2f}".format(round(coverage, 2)) + '\n')
+    corrected_read_file.write(corrected_seq + '\n')
     
-    correted_read_fq_file.write('@' + LR_read_name_list[read_int] + '|' + "{0:.2f}".format(round(coverage, 2)) + '\n')
-    correted_read_fq_file.write(corrected_seq + '\n')
-    correted_read_fq_file.write('+\n')
-    correted_read_fq_file.write(coverage_seq.replace('X','').replace('Z','') + '\n')
+    corrected_read_fq_file.write('@' + LR_read_name_list[read_int] + '|' + "{0:.2f}".format(round(coverage, 2)) + '\n')
+    corrected_read_fq_file.write(corrected_seq + '\n')
+    corrected_read_fq_file.write('+\n')
+    corrected_read_fq_file.write(coverage_seq.replace('X','').replace('Z','') + '\n')
 
 
 tmp.close()
 full_read_file.close()
-correted_read_file.close()
-correted_read_fq_file.close()
+corrected_read_file.close()
+corrected_read_fq_file.close()
 uncorrected_read_file.close() 
 log_print(datetime.datetime.now()-t0)
